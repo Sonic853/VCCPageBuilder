@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Sonic853.VCCPageBuilder;
 using Sonic853.VCCPageBuilder.Models;
+using VRC.PackageManagement.Automation.Multi;
 using VRC.PackageManagement.Core.Types.Packages;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
@@ -18,11 +19,20 @@ Console.WriteLine($"Conversion complete in [{dur.TotalMilliseconds}ms].");
 
 static async Task<int> Run(Options options)
 {
+    var sourceFile = options.SourcePath;
     var vpmFile = options.JsonPath;
     var templatePath = options.WebPath;
     var outputPath = options.OutputPath;
     var bannerUrl = options.BannerUrl;
+
+    ListingSource? source = null;
+
+    if (File.Exists(sourceFile))
+    {
+        source = JsonConvert.DeserializeObject<ListingSource>(await File.ReadAllTextAsync(sourceFile));
+    }
     var _bannerUrl = "banner.png";
+    if (string.IsNullOrEmpty(bannerUrl)) bannerUrl = source?.bannerUrl;
     if (string.IsNullOrEmpty(bannerUrl) && File.Exists(Path.Combine(templatePath, "banner.png")))
     {
         bannerUrl = _bannerUrl;
@@ -32,35 +42,28 @@ static async Task<int> Run(Options options)
     const string WebPageAppFilename = "app.js";
 
     // var vpm = JsonConvert.DeserializeObject<VPM>(await File.ReadAllTextAsync(vpmFile));
-    var vpmobj = JObject.Parse(await File.ReadAllTextAsync(vpmFile));
+    JObject? vpmobj = null;
+
+    if (File.Exists(vpmFile))
+        vpmobj = JObject.Parse(await File.ReadAllTextAsync(vpmFile));
 
     if (vpmobj == null) { return 0; }
 
-    var authorobj = vpmobj["authorInfo"];
-    VPMAuthor? author = null;
-
-    if (authorobj != null && authorobj.Type == JTokenType.Object)
-    {
-        author = authorobj.ToObject<VPMAuthor>();
-    }
-
-    var infoLink = vpmobj["infoLink"]?.ToObject<VPMInfoLink>();
-
     var listingInfo = new
     {
-        Name = vpmobj["name"]?.ToString()!,
-        Url = vpmobj["url"]?.ToString()!,
-        Description = vpmobj["description"]?.ToString()!,
+        Name = source?.name ?? vpmobj["name"]?.ToString()!,
+        Url = source?.url ?? vpmobj["url"]?.ToString()!,
+        Description = source?.description ?? vpmobj["description"]?.ToString()!,
         InfoLink = new
         {
-            Text = infoLink?.text,
-            Url = infoLink?.url,
+            Text = source?.infoLink.text,
+            Url = source?.infoLink.url,
         },
         Author = new
         {
-            Name = author?.name ?? vpmobj["author"]?.ToString(),
-            Url = author?.url,
-            Email = author?.email
+            Name = source?.author.name ?? vpmobj["author"]?.ToString(),
+            Url = source?.author.url,
+            Email = source?.author.email
         },
         BannerImage = !string.IsNullOrEmpty(bannerUrl),
         BannerImageUrl = bannerUrl,

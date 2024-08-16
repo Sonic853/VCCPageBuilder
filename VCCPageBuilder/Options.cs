@@ -9,12 +9,22 @@ public sealed class Options
 {
     public Options()
     {
+        SourcePath = string.Empty;
         JsonPath = string.Empty;
         WebPath = string.Empty;
         OutputPath = string.Empty;
         BannerUrl = string.Empty;
     }
 
+    /// <summary>
+    /// input source.json file path.
+    /// </summary>
+    [Option('s', "source", Default = "source.json", HelpText = "input source.json file path.")]
+    public string SourcePath
+    {
+        get;
+        set;
+    }
     /// <summary>
     /// input vpm file path.
     /// </summary>
