@@ -58,7 +58,7 @@ static async Task<int> Run(Options options)
         },
         Author = new
         {
-            Name = author?.name,
+            Name = author?.name ?? vpmobj["author"]?.ToString(),
             Url = author?.url,
             Email = author?.email
         },
@@ -66,51 +66,107 @@ static async Task<int> Run(Options options)
         BannerImageUrl = bannerUrl,
     };
 
-    var lastpackages = new List<VRCPackageManifest>();
+    // var lastpackages = new List<VRCPackageManifest>();
+    var lastpackagesobj = new List<JToken>();
     var packagesobj = vpmobj["packages"];
-    Dictionary<string, VPMPackagesVersions>? packages = null;
+    // Dictionary<string, VPMPackagesVersions>? packages = null;
+    Dictionary<string, JToken>? _packagesobj = null;
 
     if (packagesobj != null && packagesobj.Type == JTokenType.Object)
     {
-        packages = packagesobj.ToObject<Dictionary<string, VPMPackagesVersions>>();
+        // packages = packagesobj.ToObject<Dictionary<string, VPMPackagesVersions>>();
+        _packagesobj = packagesobj.ToObject<Dictionary<string, JToken>>();
     }
 
-    if (packages == null)
+    if (_packagesobj != null)
     {
-        return 0;
-    }
 
-    foreach (var package in packages)
-    {
-        foreach (var version in package.Value.Versions)
+        foreach (var package in _packagesobj)
         {
-            lastpackages.Add(version.Value);
-            break;
+            var versionsobj = package.Value["versions"];
+            if (versionsobj == null) { continue; }
+            Dictionary<string, JToken>? versions = versionsobj.ToObject<Dictionary<string, JToken>>();
+            if (versions == null) { continue; }
+            foreach (var version in versions)
+            {
+                lastpackagesobj.Add(version.Value);
+                break;
+            }
         }
     }
-    var formattedPackages = lastpackages.ConvertAll(p => new
+    // if (packages != null)
+    // {
+    //     foreach (var package in packages)
+    //     {
+    //         foreach (var version in package.Value.Versions)
+    //         {
+    //             lastpackages.Add(version.Value);
+    //             break;
+    //         }
+    //     }
+    // }
+    var formattedPackagesobj = lastpackagesobj.ConvertAll(p =>
     {
-        Name = p.Id,
-        Author = new
+        // Console.WriteLine(p.ToString());
+        // Console.WriteLine(p["licensesUrl"]?.ToString());
+        var authorobj = p["author"];
+        VPMAuthor? author = null;
+
+        if (authorobj != null && authorobj.Type == JTokenType.Object)
         {
-            Name = p.author?.name,
-            Url = p.author?.url,
-        },
-        ZipUrl = p.Url,
-        License = p.license,
-        LicenseUrl = p.licensesUrl,
-        Keywords = p.keywords,
-        Type = GetPackageType(p),
-        p.Description,
-        DisplayName = p.Title,
-        p.Version,
-        Dependencies = p.VPMDependencies.Select(dep => new
-        {
-            Name = dep.Key,
-            Version = dep.Value
+            author = authorobj.ToObject<VPMAuthor>();
         }
-        ).ToList(),
+
+        var vRCPackageManifest = p.ToObject<VRCPackageManifest>();
+        return new
+        {
+            Name = p["name"]?.ToString(),
+            Author = new
+            {
+                Name = author?.name ?? p["author"]?.ToString(),
+                Url = author?.url,
+            },
+            ZipUrl = p["url"]?.ToString(),
+            License = p["license"]?.ToString(),
+            LicensesUrl = p["licensesUrl"]?.ToString(),
+            Keywords = p["keywords"]?.ToObject<List<string>>(),
+            Description = p["description"]?.ToString(),
+            DisplayName = p["displayName"]?.ToString(),
+            Version = p["version"]?.ToString(),
+            Type = GetPackageType(vRCPackageManifest),
+            Dependencies = vRCPackageManifest?.VPMDependencies.Select(dep => new
+            {
+                Name = dep.Key,
+                Version = dep.Value
+            }
+            ).ToList()
+        };
     });
+    // var formattedPackages = lastpackages.ConvertAll(p => new
+    // {
+    //     Name = p.Id,
+    //     Author = new
+    //     {
+    //         Name = p.author?.name,
+    //         Url = p.author?.url,
+    //     },
+    //     ZipUrl = p.Url,
+    //     License = p.license,
+    //     LicensesUrl = p.licensesUrl,
+    //     Keywords = p.keywords,
+    //     Type = GetPackageType(p),
+    //     p.Description,
+    //     DisplayName = p.Title,
+    //     p.Version,
+    //     Dependencies = p.VPMDependencies.Select(dep => new
+    //     {
+    //         Name = dep.Key,
+    //         Version = dep.Value
+    //     }
+    //     ).ToList(),
+    // });
+
+    // Console.WriteLine(JsonConvert.SerializeObject(formattedPackagesobj, Formatting.Indented));
 
     CopyFilesRecursively(templatePath, outputPath);
 
@@ -119,20 +175,20 @@ static async Task<int> Run(Options options)
     var indexTemplateContent = await File.ReadAllTextAsync(indexTemplatePath);
     var appReadContent = await File.ReadAllTextAsync(appReadPath);
     var rendered = await Scriban.Template.Parse(indexTemplateContent, indexTemplatePath).RenderAsync(
-        new { listingInfo, packages = formattedPackages }, member => member.Name
+        new { listingInfo, packages = formattedPackagesobj }, member => member.Name
     );
     var appJsRendered = await Scriban.Template.Parse(appReadContent, appReadPath).RenderAsync(
-        new { listingInfo, packages = formattedPackages }, member => member.Name
+        new { listingInfo, packages = formattedPackagesobj }, member => member.Name
     );
 
     File.WriteAllText(Path.Combine(outputPath, WebPageIndexFilename), rendered);
     File.WriteAllText(Path.Combine(outputPath, WebPageAppFilename), appJsRendered);
 
-    Console.WriteLine($"Saved Listing to {outputPath}.");
+    // Console.WriteLine($"Saved Listing to {outputPath}.");
     return 0;
 }
 
-static string GetPackageType(IVRCPackage p)
+static string GetPackageType(IVRCPackage? p)
 {
     string result = "Any";
     if (p is not VRCPackageManifest manifest) return result;
