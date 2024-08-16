@@ -36,7 +36,7 @@ static async Task<int> Run(Options options)
 
     if (vpmobj == null) { return 0; }
 
-    var authorobj = vpmobj["author"];
+    var authorobj = vpmobj["authorInfo"];
     VPMAuthor? author = null;
 
     if (authorobj != null && authorobj.Type == JTokenType.Object)
