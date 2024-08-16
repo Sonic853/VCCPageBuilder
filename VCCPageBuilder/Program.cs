@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿// dotnet publish VCCPageBuilder/VCCPageBuilder.csproj -c Release -o ./output /p:PublishSingleFile=true /p:RuntimeIdentifier=linux-x64 /p:SelfContained=false
+using System.Text;
 using CommandLine;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -21,8 +22,8 @@ static async Task<int> Run(Options options)
     var templatePath = options.WebPath;
     var outputPath = options.OutputPath;
     var bannerUrl = options.BannerUrl;
-    var _bannerUrl = Path.Combine(templatePath, "banner.png");
-    if (string.IsNullOrEmpty(bannerUrl) && File.Exists(_bannerUrl))
+    var _bannerUrl = "banner.png";
+    if (string.IsNullOrEmpty(bannerUrl) && File.Exists(Path.Combine(templatePath, "banner.png")))
     {
         bannerUrl = _bannerUrl;
     }
